@@ -2,8 +2,9 @@ services:
   - type: web
     name: agentic-backend
     runtime: node
-    buildCommand: cd backend && npm install
-    startCommand: cd backend && npm start
+    rootDirectory: backend
+    buildCommand: npm install
+    startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production
@@ -14,8 +15,9 @@ services:
   - type: web
     name: agentic-frontend
     runtime: static
-    buildCommand: cd frontend && npm install && npm run build
-    staticPublishPath: frontend/dist
+    rootDirectory: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
     envVars:
       - key: NODE_ENV
         value: production
