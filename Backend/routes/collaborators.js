@@ -1,21 +1,11 @@
-const express = require('express');
-const auth = require('../middleware/auth');
-const Collaboration = require('../models/Collaboration');
+import { Router } from 'express'
+import { Profile } from '../models/Profile.js'
 
-const router = express.Router();
+const router = Router()
 
-// Get suggested collaborators
-router.get('/', auth, async (req, res) => {
-  try {
-    const collaborations = await Collaboration.find({ user: req.user._id })
-      .populate('suggestedUser', 'email profile')
-      .sort({ matchScore: -1 });
+router.get('/suggestions', async (_req, res) => {
+  const list = await Profile.find().limit(6)
+  res.json(list)
+})
 
-    res.json(collaborations);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-module.exports = router;
+export default router

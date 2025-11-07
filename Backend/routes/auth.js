@@ -1,87 +1,53 @@
-const express = require('express');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+import { Router } from 'express'
+import bcrypt from 'bcrypt'
+import { User } from '../models/User.js'
+import { LoginLog } from '../models/LoginLog.js'
 
-const router = express.Router();
+const router = Router()
 
-// Signup
 router.post('/signup', async (req, res) => {
+  const { name, email, password, affiliation } = req.body
+  if (!name || !email || !password) {
+    return res.status(400).json({ error: 'Name, email, and password are required' })
+  }
   try {
-    const { email, password, role, profile } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
-    }
-
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email })
     if (existingUser) {
-      return res.status(400).json({ error: 'User already exists' });
+      return res.status(400).json({ error: 'User already exists' })
     }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const user = new User({
-      email,
-      password: hashedPassword,
-      role: role || 'researcher',
-      profile: profile || {}
-    });
-
-    await user.save();
-
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-
+    const passwordHash = await bcrypt.hash(password, 10)
+    const user = new User({ name, email, passwordHash, affiliation })
+    await user.save()
     res.status(201).json({
       message: 'User created successfully',
-      token,
-      user: {
-        id: user._id,
-        email: user.email,
-        role: user.role,
-        profile: user.profile
-      }
-    });
+      user: { id: user._id, name: user.name, email: user.email, affiliation: user.affiliation }
+    })
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Server error' })
   }
-});
+})
 
-// Login
 router.post('/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
-    }
-
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(400).json({ error: 'Invalid credentials' });
-    }
-
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(400).json({ error: 'Invalid credentials' });
-    }
-
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-
-    res.json({
-      message: 'Login successful',
-      token,
-      user: {
-        id: user._id,
-        email: user.email,
-        role: user.role,
-        profile: user.profile
-      }
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Server error' });
+  const { email, password } = req.body
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' })
   }
-});
+  try {
+    const user = await User.findOne({ email })
+    if (!user) {
+      await LoginLog.create({ email, success: false, ip: req.ip, userAgent: req.get('user-agent') })
+      return res.status(400).json({ error: 'Invalid credentials' })
+    }
+    const isMatch = await bcrypt.compare(password, user.passwordHash)
+    if (!isMatch) {
+      await LoginLog.create({ userId: user._id, email, success: false, ip: req.ip, userAgent: req.get('user-agent') })
+      return res.status(400).json({ error: 'Invalid credentials' })
+    }
+    await LoginLog.create({ userId: user._id, email, success: true, ip: req.ip, userAgent: req.get('user-agent') })
+    res.json({ message: 'Login successful', user: { id: user._id, name: user.name, email: user.email } })
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' })
+  }
+})
 
-module.exports = router;
+export default router

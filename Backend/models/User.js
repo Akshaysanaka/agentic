@@ -1,32 +1,11 @@
-const mongoose = require('mongoose');
+import mongoose from '../db.js'
 
-const userSchema = new mongoose.Schema({
-  email: {
-    type: String,
-    required: true,
-    unique: true,
-    lowercase: true,
-    trim: true
-  },
-  password: {
-    type: String,
-    required: true
-  },
-  role: {
-    type: String,
-    enum: ['faculty', 'researcher'],
-    default: 'researcher'
-  },
-  profile: {
-    name: String,
-    institution: String,
-    department: String,
-    bio: String
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
-});
+const UserSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true, index: true },
+  affiliation: { type: String },
+  passwordHash: { type: String },
+  createdAt: { type: Date, default: Date.now },
+})
 
-module.exports = mongoose.model('User', userSchema);
+export const User = mongoose.models.User || mongoose.model('User', UserSchema)

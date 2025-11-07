@@ -101,10 +101,10 @@ router.post('/chat', async (req, res) => {
     }
   }
 
-  // General question handler - search across profiles and grants
+  // General question handler - search across profiles, grants, projects, publications, and analytics
   try {
     const searchTerm = String(query).toLowerCase()
-    
+
     // Search profiles
     const profileResults = await Profile.find({
       $or: [
@@ -116,7 +116,7 @@ router.post('/chat', async (req, res) => {
         { 'projects.description': { $regex: searchTerm, $options: 'i' } },
       ],
     })
-      .select('name email affiliation expertise projects')
+      .select('name email affiliation expertise location projects')
       .limit(10)
 
     // Search grants
@@ -129,12 +129,29 @@ router.post('/chat', async (req, res) => {
       ],
     }).select('title domain agency').limit(10)
 
-    if ((profileResults && profileResults.length > 0) || (grantResults && grantResults.length > 0)) {
+    // Search projects (mock data for now)
+    const projectResults = [
+      { id: 'p1', title: 'Agentic Research Assistant', status: 'Active' },
+      { id: 'p2', title: 'Collaborator Recommender', status: 'Planned' },
+    ].filter(p => p.title.toLowerCase().includes(searchTerm) || p.status.toLowerCase().includes(searchTerm))
+
+    // Search publications (mock data for now)
+    const publicationResults = [
+      { id: 'pub1', title: 'RAG with LangChain', venue: 'NeurIPS Workshops 2024' },
+      { id: 'pub2', title: 'CrewAI for Collaboration', venue: 'AAAI 2025' },
+    ].filter(p => p.title.toLowerCase().includes(searchTerm) || p.venue.toLowerCase().includes(searchTerm))
+
+    // Search analytics summary
+    const analyticsResults = { people: 60, grants: 8, suggestions: 6 }
+    const analyticsMatches = Object.keys(analyticsResults).filter(key => key.includes(searchTerm))
+
+    if ((profileResults && profileResults.length > 0) || (grantResults && grantResults.length > 0) ||
+        projectResults.length > 0 || publicationResults.length > 0 || analyticsMatches.length > 0) {
       const profileBlocks = (profileResults || []).slice(0, 5).map((p) => {
         const exp = (p.expertise || []).slice(0, 5).join(', ')
         const projTitles = (p.projects || []).slice(0, 2).map(pr => pr.title || 'Untitled')
         const parts = [
-          `• ${p.name}${p.affiliation ? ` — ${p.affiliation}` : ''}`,
+          `• ${p.name}${p.affiliation ? ` — ${p.affiliation}` : ''}${p.location ? `, ${p.location}` : ''}`,
           p.email ? `  Email: ${p.email}` : null,
           exp ? `  Expertise: ${exp}` : null,
           projTitles.length ? `  Projects: ${projTitles.join(' | ')}` : null,
@@ -142,10 +159,16 @@ router.post('/chat', async (req, res) => {
         return parts.join('\n')
       })
       const grantLines = (grantResults || []).slice(0, 5).map((g) => `• ${g.title}${g.agency ? ` — ${g.agency}` : ''}${g.domain ? ` [${g.domain}]` : ''}`)
+      const projectLines = projectResults.slice(0, 5).map((p) => `• ${p.title} (${p.status})`)
+      const publicationLines = publicationResults.slice(0, 5).map((p) => `• ${p.title} — ${p.venue}`)
+      const analyticsLines = analyticsMatches.map((key) => `• ${key}: ${analyticsResults[key]}`)
 
       const parts = []
       if (profileBlocks.length) parts.push(`Profiles related to "${query}":\n\n${profileBlocks.join('\n\n')}${(profileResults?.length || 0) > 5 ? '\n\n...and more' : ''}`)
       if (grantLines.length) parts.push(`Grants related to "${query}":\n${grantLines.join('\n')}${(grantResults?.length || 0) > 5 ? '\n...and more' : ''}`)
+      if (projectLines.length) parts.push(`Projects related to "${query}":\n${projectLines.join('\n')}`)
+      if (publicationLines.length) parts.push(`Publications related to "${query}":\n${publicationLines.join('\n')}`)
+      if (analyticsLines.length) parts.push(`Analytics related to "${query}":\n${analyticsLines.join('\n')}`)
       return res.json({ response: parts.join('\n\n') })
     }
   } catch (e) {
@@ -154,10 +177,12 @@ router.post('/chat', async (req, res) => {
 
   // Fallback: Provide helpful general response
   const helpfulResponses = {
-    'help': 'I can help you find information about people, projects, grants, and more. Try asking:\n• "Who worked on AI/ML projects?"\n• "Tell me about [person name]"\n• "What projects are available?"\n• "Show me grants"',
-    'hello': 'Hello! I\'m your AI assistant. I can help you find information about people, projects, grants, and research data. What would you like to know?',
+    'help': 'I can help you find information about people, projects, grants, publications, analytics, and more. Try asking:\n• "Who worked on AI/ML projects?"\n• "Tell me about [person name]"\n• "What projects are available?"\n• "Show me grants"\n• "What publications do we have?"\n• "Show me analytics"',
+    'hello': 'Hello! I\'m your AI assistant. I can help you find information about people, projects, grants, publications, analytics, and research data. What would you like to know?',
     'projects': 'I can help you find projects. Try asking about specific topics like "AI projects" or "who worked on [topic]"',
     'grants': 'I can help you find grants. You can browse grants in the Grants section or ask me about specific grant topics.',
+    'publications': 'I can help you find publications. Try asking about specific topics or venues.',
+    'analytics': 'I can show you analytics about the application, including user statistics and usage data.',
   }
 
   const lowerQuery = String(query).toLowerCase().trim()
@@ -167,7 +192,43 @@ router.post('/chat', async (req, res) => {
     }
   }
 
-  // Final fallback: intelligent response
+  // Final fallback: Try one more profile search with better formatting
+  try {
+    const searchTerm = String(query).toLowerCase()
+    const finalProfiles = await Profile.find({
+      $or: [
+        { name: { $regex: searchTerm, $options: 'i' } },
+        { email: { $regex: searchTerm, $options: 'i' } },
+        { affiliation: { $regex: searchTerm, $options: 'i' } },
+        { expertise: { $in: [new RegExp(searchTerm, 'i')] } },
+        { 'projects.title': { $regex: searchTerm, $options: 'i' } },
+        { 'projects.description': { $regex: searchTerm, $options: 'i' } },
+      ],
+    })
+      .select('name email affiliation expertise location projects')
+      .limit(10)
+
+    if (finalProfiles && finalProfiles.length > 0) {
+      const profileBlocks = finalProfiles.slice(0, 5).map((p) => {
+        const exp = (p.expertise || []).slice(0, 5).join(', ')
+        const projTitles = (p.projects || []).slice(0, 2).map(pr => pr.title || 'Untitled')
+        const parts = [
+          `• ${p.name}${p.affiliation ? ` — ${p.affiliation}` : ''}${p.location ? `, ${p.location}` : ''}`,
+          p.email ? `  Email: ${p.email}` : null,
+          exp ? `  Expertise: ${exp}` : null,
+          projTitles.length ? `  Projects: ${projTitles.join(' | ')}` : null,
+        ].filter(Boolean)
+        return parts.join('\n')
+      })
+      return res.json({ 
+        response: `I found ${finalProfiles.length} matching profile(s):\n\n${profileBlocks.join('\n\n')}${finalProfiles.length > 5 ? '\n\n...and more' : ''}` 
+      })
+    }
+  } catch (e) {
+    // Continue to mock fallback
+  }
+
+  // Final fallback: mock response
   const results = await semanticSearchLangChain(query)
   const response = `I understand you're asking about "${query}". Here's what I found:\n${results.map(r => `• ${r.doc}`).join('\n')}\n\nYou can also ask me:\n• About specific people (e.g., "about John Smith")\n• Who worked on specific topics (e.g., "who did AI projects")\n• General questions about the application`
   res.json({ response })

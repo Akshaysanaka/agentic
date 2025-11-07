@@ -1,40 +1,12 @@
-const mongoose = require('mongoose');
+import mongoose from '../db.js'
 
-const grantSchema = new mongoose.Schema({
-  title: {
-    type: String,
-    required: true
-  },
-  fundingBody: {
-    type: String,
-    required: true
-  },
-  deadline: {
-    type: Date,
-    required: true
-  },
-  eligibility: {
-    type: String,
-    required: true
-  },
-  description: {
-    type: String,
-    required: true
-  },
-  amount: {
-    type: String
-  },
-  url: {
-    type: String
-  },
-  keywords: [{
-    type: String,
-    trim: true
-  }],
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
-});
+const GrantSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  domain: { type: String, index: true },
+  agency: { type: String },
+  description: { type: String },
+  open: { type: Boolean, default: true },
+  createdAt: { type: Date, default: Date.now },
+})
 
-module.exports = mongoose.model('Grant', grantSchema);
+export const Grant = mongoose.models.Grant || mongoose.model('Grant', GrantSchema)
